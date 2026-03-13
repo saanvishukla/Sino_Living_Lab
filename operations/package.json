@@ -4,17 +4,25 @@
   "description": "An automated workflow for modifying tenant structure by monitoring incoming emails and new form entries. Below we describe the structure of this module.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx watch src/index.ts"
   },
+  "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/imapflow": "^1.0.23",
+    "@types/node": "^25.5.0",
+    "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "imapflow": "^1.2.13"
+    "dotenv": "^17.3.1",
+    "iconv-lite": "^0.7.2",
+    "imapflow": "^1.2.13",
+    "jsdom": "^28.1.0",
+    "quoted-printable": "^1.0.1"
   }
 }
