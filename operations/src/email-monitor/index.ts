@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import { JSDOM } from 'jsdom';
 import quotedPrintable from 'quoted-printable';
 import utf8 from "utf8"
+import { saveTenant } from '../utils/db.js';
 
 const client = new ImapFlow({
     host: 'imap.gmail.com',
@@ -111,7 +112,23 @@ async function extractTableDataAndSave(htmlContent) {
 
             console.log(`Extracted ${dataRows.length} data rows`);
 
-            let csvContent = '\uFEFF'; // UTF-8 BOM for Excel
+            for (const row of dataRows) {
+                const tenantData: Record<string, any> = {};
+                headers.forEach((header, idx) => {
+                    if (row[idx]) {
+                        tenantData[header.toLowerCase().replace(/\s+/g, '_')] = row[idx];
+                    }
+                });
+
+                try {
+                    const tenantId = await saveTenant(tenantData, true);
+                    console.log(`Saved tenant to Redis: ${tenantId}`);
+                } catch (error) {
+                    console.error('Error saving tenant to Redis:', error);
+                }
+            }
+
+            let csvContent = '\uFEFF';
             csvContent += headers.join(',') + '\n';
             dataRows.forEach(row => {
                 while (row.length < headers.length) {
