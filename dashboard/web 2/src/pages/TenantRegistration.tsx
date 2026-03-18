@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Search, Eye, Pencil, Trash2, Building2, Users, TrendingUp, TrendingDown, Mail } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Search, Eye, Pencil, Trash2, Building2, Users, TrendingUp, TrendingDown, Mail, Plus, X } from 'lucide-react'
 
 interface Tenant {
   id: string
@@ -24,6 +24,14 @@ export default function TenantRegistration() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null)
+  const [editForm, setEditForm] = useState<Partial<Tenant>>({})
+  const [addForm, setAddForm] = useState<Partial<Tenant>>({})
 
   useEffect(() => {
     fetchTenants()
@@ -45,6 +53,82 @@ export default function TenantRegistration() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleView = (tenant: Tenant) => {
+    setSelectedTenant(tenant)
+    setViewDialogOpen(true)
+  }
+
+  const handleEdit = (tenant: Tenant) => {
+    setSelectedTenant(tenant)
+    setEditForm(tenant)
+    setEditDialogOpen(true)
+  }
+
+  const handleDelete = (tenant: Tenant) => {
+    setSelectedTenant(tenant)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!selectedTenant) return
+    
+    try {
+      const response = await fetch(`http://localhost:3001/api/tenants/${selectedTenant.id}`, {
+        method: 'DELETE'
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        await fetchTenants()
+        setDeleteDialogOpen(false)
+        setSelectedTenant(null)
+      }
+    } catch (err) {
+      console.error('Error deleting tenant:', err)
+    }
+  }
+
+  const saveEdit = async () => {
+    if (!selectedTenant) return
+    
+    try {
+      const response = await fetch(`http://localhost:3001/api/tenants/${selectedTenant.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        await fetchTenants()
+        setEditDialogOpen(false)
+        setSelectedTenant(null)
+        setEditForm({})
+      }
+    } catch (err) {
+      console.error('Error updating tenant:', err)
+    }
+  }
+
+  const addTenant = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/tenants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm)
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        await fetchTenants()
+        setAddDialogOpen(false)
+        setAddForm({})
+      }
+    } catch (err) {
+      console.error('Error adding tenant:', err)
     }
   }
 
@@ -172,11 +256,13 @@ export default function TenantRegistration() {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-                Filter
+              <Button 
+                size="sm" 
+                className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                onClick={() => setAddDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Tenant
               </Button>
               <Button variant="outline" size="sm" className="gap-2">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,13 +359,28 @@ export default function TenantRegistration() {
                       </div>
                       
                       <div className="col-span-1 flex justify-end gap-2">
-                        <Button size="sm" variant="outline" className="hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+                          onClick={() => handleView(tenant)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline" className="hover:bg-green-50 hover:text-green-600 hover:border-green-300">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="hover:bg-green-50 hover:text-green-600 hover:border-green-300"
+                          onClick={() => handleEdit(tenant)}
+                        >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline" className="hover:bg-red-50 hover:text-red-600 hover:border-red-300">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                          onClick={() => handleDelete(tenant)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -291,6 +392,197 @@ export default function TenantRegistration() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Details Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tenant Details</DialogTitle>
+            <DialogDescription>Complete information for this tenant</DialogDescription>
+          </DialogHeader>
+          {selectedTenant && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Unit</Label>
+                  <p className="font-medium">{selectedTenant.unit || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Remarks</Label>
+                  <p className="font-medium">{selectedTenant.remarks || 'N/A'}</p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Existing Tenant</Label>
+                <p className="font-medium">{selectedTenant.former_tenant___existing_tenant || 'N/A'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">New Tenant</Label>
+                <p className="font-medium">{selectedTenant.new_tenant || 'N/A'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Email Address</Label>
+                <p className="font-medium">{selectedTenant.email || 'N/A'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Registered</Label>
+                <p className="font-medium">
+                  {selectedTenant.createdAt ? new Date(selectedTenant.createdAt).toLocaleString() : 'N/A'}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tenant Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>Update tenant information</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="edit-unit">Unit</Label>
+              <Input
+                id="edit-unit"
+                value={editForm.unit || ''}
+                onChange={(e) => setEditForm({...editForm, unit: e.target.value})}
+                placeholder="e.g., 2305"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-existing">Existing Tenant</Label>
+              <Input
+                id="edit-existing"
+                value={editForm.former_tenant___existing_tenant || ''}
+                onChange={(e) => setEditForm({...editForm, former_tenant___existing_tenant: e.target.value})}
+                placeholder="Company name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-new">New Tenant</Label>
+              <Input
+                id="edit-new"
+                value={editForm.new_tenant || ''}
+                onChange={(e) => setEditForm({...editForm, new_tenant: e.target.value})}
+                placeholder="Company name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-email">Email Address</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editForm.email || ''}
+                onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-remarks">Remarks</Label>
+              <Input
+                id="edit-remarks"
+                value={editForm.remarks || ''}
+                onChange={(e) => setEditForm({...editForm, remarks: e.target.value})}
+                placeholder="Add, Delete, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveEdit} className="bg-gradient-to-r from-blue-600 to-blue-700">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Tenant</DialogTitle>
+            <DialogDescription>Are you sure you want to delete this tenant?</DialogDescription>
+          </DialogHeader>
+          {selectedTenant && (
+            <div className="py-4">
+              <p className="text-sm">
+                You are about to delete: <strong>{selectedTenant.former_tenant___existing_tenant || selectedTenant.new_tenant || `Unit ${selectedTenant.unit}`}</strong>
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">This action cannot be undone.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Tenant Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Tenant</DialogTitle>
+            <DialogDescription>Create a new tenant record</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="add-unit">Unit *</Label>
+              <Input
+                id="add-unit"
+                value={addForm.unit || ''}
+                onChange={(e) => setAddForm({...addForm, unit: e.target.value})}
+                placeholder="e.g., 2305"
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-existing">Existing Tenant</Label>
+              <Input
+                id="add-existing"
+                value={addForm.former_tenant___existing_tenant || ''}
+                onChange={(e) => setAddForm({...addForm, former_tenant___existing_tenant: e.target.value})}
+                placeholder="Company name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-new">New Tenant</Label>
+              <Input
+                id="add-new"
+                value={addForm.new_tenant || ''}
+                onChange={(e) => setAddForm({...addForm, new_tenant: e.target.value})}
+                placeholder="Company name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-email">Email Address</Label>
+              <Input
+                id="add-email"
+                type="email"
+                value={addForm.email || ''}
+                onChange={(e) => setAddForm({...addForm, email: e.target.value})}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="add-remarks">Remarks</Label>
+              <Input
+                id="add-remarks"
+                value={addForm.remarks || ''}
+                onChange={(e) => setAddForm({...addForm, remarks: e.target.value})}
+                placeholder="Add, Delete, etc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+            <Button onClick={addTenant} className="bg-gradient-to-r from-blue-600 to-blue-700">Add Tenant</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

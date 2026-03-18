@@ -1,9 +1,10 @@
 import { ImapFlow } from 'imapflow';
-import fs from 'fs/promises';
 import { JSDOM } from 'jsdom';
 import quotedPrintable from 'quoted-printable';
 import utf8 from "utf8"
+import fs from 'fs/promises';
 import { saveTenant } from '../utils/db.js';
+import { saveFlaggedEmail } from '../utils/flagged-emails.js';
 
 const client = new ImapFlow({
     host: 'imap.gmail.com',
@@ -168,6 +169,17 @@ async function extractTableDataAndSave(htmlContent, senderEmail = null) {
         }
     } catch (error) {
         console.error('Error parsing HTML:', error);
+        try {
+            await saveFlaggedEmail({
+                subject: emailSubject,
+                sender: senderEmail || 'Unknown',
+                htmlContent: htmlContent,
+                errorMessage: `Parsing error: ${error.message || 'Unknown error'}`
+            });
+            console.log('Email flagged due to parsing error');
+        } catch (flagError) {
+            console.error('Error saving flagged email:', flagError);
+        }
     }
 }
 
@@ -245,10 +257,17 @@ export const main = async () => {
                     if (htmlContent) {
                         console.log('HTML content length:', htmlContent.length);
                         console.log('Sample (first 200 chars):', htmlContent.substring(0, 200));
-                        await extractTableDataAndSave(htmlContent, senderEmail);
+                        await extractTableDataAndSave(htmlContent, senderEmail, subject);
                     } else {
                         console.log('No HTML content could be extracted');
                         console.log('Source preview:', source.substring(0, 500));
+                        await saveFlaggedEmail({
+                            subject: subject,
+                            sender: senderEmail || 'Unknown',
+                            htmlContent: source.substring(0, 5000),
+                            errorMessage: 'No HTML content could be extracted from email'
+                        });
+                        console.log('Email flagged - no HTML content');
                     }
                 }
             } catch (error) {

@@ -4,9 +4,10 @@ import { Input } from './ui/input'
 
 interface LayoutProps {
   children: ReactNode
+  onNavigate?: (page: 'tenants' | 'flagged' | 'directory') => void
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, onNavigate }: LayoutProps) {
   return (
     <div className="flex h-screen bg-background">
       <aside className="w-64 border-r bg-card shadow-sm">
@@ -23,29 +24,29 @@ export default function Layout({ children }: LayoutProps) {
         </div>
         
         <nav className="space-y-1 px-3 py-4">
-          <a
-            href="#"
-            className="flex items-center gap-3 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2.5 text-white shadow-md"
+          <button
+            onClick={() => onNavigate?.('tenants')}
+            className="w-full flex items-center gap-3 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-2.5 text-white shadow-md"
           >
             <Users className="h-5 w-5" />
             <span className="font-medium">Tenant Registration</span>
-          </a>
+          </button>
           
-          <a
-            href="#"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          <button
+            onClick={() => onNavigate?.('flagged')}
+            className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <AlertCircle className="h-5 w-5" />
             <span>Flagged Emails</span>
-          </a>
+          </button>
           
-          <a
-            href="#"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          <button
+            onClick={() => onNavigate?.('directory')}
+            className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <FileText className="h-5 w-5" />
             <span>Generate E-Directory</span>
-          </a>
+          </button>
           
           <a
             href="#"
