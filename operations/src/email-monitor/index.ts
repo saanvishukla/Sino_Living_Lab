@@ -51,7 +51,7 @@ function cleanQuotedPrintableText(text) {
     return text;
 }
 
-async function extractTableDataAndSave(htmlContent) {
+async function extractTableDataAndSave(htmlContent, senderEmail = null) {
     try {
         console.log('Analyzing HTML content for tables...');
 
@@ -116,12 +116,31 @@ async function extractTableDataAndSave(htmlContent) {
                 const tenantData: Record<string, any> = {};
                 headers.forEach((header, idx) => {
                     if (row[idx]) {
-                        tenantData[header.toLowerCase().replace(/\s+/g, '_')] = row[idx];
+                        tenantData[header.toLowerCase().replace(/\s+/g, '_').replace(/\//g, '_')] = row[idx];
                     }
                 });
 
+                const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+                let extractedEmail = null;
+                
+                for (const value of Object.values(tenantData)) {
+                    if (typeof value === 'string') {
+                        const emailMatch = value.match(emailRegex);
+                        if (emailMatch) {
+                            extractedEmail = emailMatch[0];
+                            break;
+                        }
+                    }
+                }
+                
+                if (extractedEmail) {
+                    tenantData.email = extractedEmail;
+                } else if (senderEmail) {
+                    tenantData.email = senderEmail;
+                }
+
                 try {
-                    const tenantId = await saveTenant(tenantData, true);
+                    const tenantId = await saveTenant(tenantData, false);
                     console.log(`Saved tenant to Redis: ${tenantId}`);
                 } catch (error) {
                     console.error('Error saving tenant to Redis:', error);
@@ -174,6 +193,9 @@ export const main = async () => {
                     const subject = message.envelope.subject?.toString() || 'No Subject';
                     console.log('Processing email subject:', subject);
 
+                    const senderEmail = message.envelope.from?.[0]?.address || null;
+                    console.log('Sender email:', senderEmail);
+
                     const source = message.source.toString();
                     let htmlContent = null;
 
@@ -223,7 +245,7 @@ export const main = async () => {
                     if (htmlContent) {
                         console.log('HTML content length:', htmlContent.length);
                         console.log('Sample (first 200 chars):', htmlContent.substring(0, 200));
-                        await extractTableDataAndSave(htmlContent);
+                        await extractTableDataAndSave(htmlContent, senderEmail);
                     } else {
                         console.log('No HTML content could be extracted');
                         console.log('Source preview:', source.substring(0, 500));
