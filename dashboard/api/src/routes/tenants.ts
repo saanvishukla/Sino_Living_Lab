@@ -44,15 +44,21 @@ router.post('/', async (req, res) => {
     try {
         const { useUnitAsKey = true, ...tenantData } = req.body;
         
-        if (!tenantData.name || !tenantData.unit) {
+        // Check for 'name' or 'former_tenant___existing_tenant' as per the frontend
+        const name = tenantData.name || tenantData.former_tenant___existing_tenant || tenantData.new_tenant;
+
+        if (!name || !tenantData.unit) {
             return res.status(400).json({ success: false, error: 'Name and unit are required' });
         }
         
-        const tenantId = await saveTenant(tenantData, useUnitAsKey);
+        // Ensure name property exists for the saveTenant function if it uses it
+        const dataToSave = { ...tenantData, name };
+        const tenantId = await saveTenant(dataToSave, useUnitAsKey);
         const tenant = await getTenant(tenantId);
         
         res.status(201).json({ success: true, data: tenant });
     } catch (error) {
+        console.error('API Error:', error);
         res.status(500).json({ success: false, error: 'Failed to create tenant' });
     }
 });
