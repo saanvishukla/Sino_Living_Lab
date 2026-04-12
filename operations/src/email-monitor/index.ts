@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import quotedPrintable from 'quoted-printable';
 import utf8 from "utf8"
 import fs from 'fs/promises';
-import { saveTenant } from '../utils/db.js';
+import { saveTenant, getTenantByUnit, deleteTenant } from '../utils/db.js';
 import { saveFlaggedEmail } from '../utils/flagged-emails.js';
 
 const client = new ImapFlow({
@@ -11,13 +11,13 @@ const client = new ImapFlow({
     port: 993,
     secure: true,
     auth: {
-        user: process.env.GMAIL_ADDRESS,
-        pass: process.env.GMAIL_PASSWORD
+        user: process.env.GMAIL_ADDRESS || '',
+        pass: process.env.GMAIL_PASSWORD || ''
     },
     logger: false,
 });
 
-function decodeQuotedPrintable(text) {
+function decodeQuotedPrintable(text: any) {
     try {
         // Decode quoted-printable into raw bytes
         const decodedBytes = quotedPrintable.decode(text);
@@ -30,7 +30,7 @@ function decodeQuotedPrintable(text) {
     }
 }
 
-function decodeBase64(text) {
+function decodeBase64(text: any) {
     try {
         return Buffer.from(text, 'base64').toString('utf-8');
     } catch (error) {
@@ -39,7 +39,7 @@ function decodeBase64(text) {
     }
 }
 
-function cleanQuotedPrintableText(text) {
+function cleanQuotedPrintableText(text: any) {
     if (!text) return text;
 
     if (text.includes('=') && /=[0-9A-F]{2}/i.test(text)) {
@@ -52,7 +52,7 @@ function cleanQuotedPrintableText(text) {
     return text;
 }
 
-async function extractTableDataAndSave(htmlContent, senderEmail = null) {
+async function extractTableDataAndSave(htmlContent: string, senderEmail: string | null = null, emailSubject: string = 'No Subject') {
     try {
         console.log('Analyzing HTML content for tables...');
 
@@ -84,7 +84,7 @@ async function extractTableDataAndSave(htmlContent, senderEmail = null) {
 
             const headerCells = rows[0].querySelectorAll('th, td');
             const headers = Array.from(headerCells).map(cell => {
-                let text = cell.textContent?.trim() || `Column ${headerCells.length}`;
+                let text = (cell as HTMLElement).textContent?.trim() || `Column ${headerCells.length}`;
                 text = text.replace(/,/g, ';')
                     .replace(/\n/g, ' ')
                     .replace(/\r/g, '');
@@ -98,7 +98,7 @@ async function extractTableDataAndSave(htmlContent, senderEmail = null) {
                 const cells = rows[i].querySelectorAll('td');
                 if (cells.length > 0) {
                     const rowData = Array.from(cells).map(cell => {
-                        let content = cell.textContent?.trim() || '';
+                        let content = (cell as HTMLElement).textContent?.trim() || '';
                         content = content.replace(/,/g, ';')
                             .replace(/\n/g, ' ')
                             .replace(/\r/g, '');
@@ -117,34 +117,94 @@ async function extractTableDataAndSave(htmlContent, senderEmail = null) {
                 const tenantData: Record<string, any> = {};
                 headers.forEach((header, idx) => {
                     if (row[idx]) {
-                        tenantData[header.toLowerCase().replace(/\s+/g, '_').replace(/\//g, '_')] = row[idx];
+                        // Keep parenthetical info like "(HONG KONG)" by only removing standalone parens if needed,
+                        // but actually, we should just normalize spaces and lowercase for keys.
+                        const key = header.toLowerCase().trim()
+                            .replace(/\s+/g, '_')
+                            .replace(/\//g, '_')
+                            .replace(/[^a-z0-9_]/g, ''); // Remove non-alphanumeric chars except underscores
+                        tenantData[key] = row[idx];
                     }
                 });
 
-                const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
-                let extractedEmail = null;
-                
-                for (const value of Object.values(tenantData)) {
-                    if (typeof value === 'string') {
-                        const emailMatch = value.match(emailRegex);
-                        if (emailMatch) {
-                            extractedEmail = emailMatch[0];
-                            break;
-                        }
-                    }
-                }
-                
-                if (extractedEmail) {
-                    tenantData.email = extractedEmail;
-                } else if (senderEmail) {
-                    tenantData.email = senderEmail;
+                // Map specific columns requested by user
+                // "Unit", "Former Tenant/Existing Tenant" and "Remarks"
+                const unit = tenantData.unit;
+                let tenantName = tenantData.former_tenant_existing_tenant || 
+                                tenantData.former_tenant__existing_tenant ||
+                                tenantData.new_tenant; // Fallback to new_tenant if applicable
+                const remarks = (tenantData.remarks || '').toLowerCase().trim();
+
+                // Explicitly decode tenantName if it contains quoted-printable
+                if (tenantName) {
+                    tenantName = cleanQuotedPrintableText(tenantName);
                 }
 
-                try {
-                    const tenantId = await saveTenant(tenantData, false);
-                    console.log(`Saved tenant to Redis: ${tenantId}`);
-                } catch (error) {
-                    console.error('Error saving tenant to Redis:', error);
+                if (unit && (remarks === 'add' || remarks === 'delete')) {
+                    // Extract floor from unit
+                    // Heuristic: if unit is 4 digits (e.g., 1201), floor is "12"
+                    // If unit is 3 digits (e.g., 501), floor is "5"
+                    // If unit starts with letters (e.g., G01), floor is "G"
+                    let floor = '';
+                    if (unit.length >= 3) {
+                        floor = unit.slice(0, -2);
+                    } else {
+                        floor = unit;
+                    }
+
+                    if (remarks === 'delete') {
+                        console.log(`Processing DELETE for unit ${unit}...`);
+                        const existing = await getTenantByUnit(unit);
+                        if (existing) {
+                            await deleteTenant(existing.id);
+                            console.log(`Deleted tenant ${existing.id} for unit ${unit}`);
+                        } else {
+                            console.log(`No existing tenant found for unit ${unit} to delete`);
+                        }
+                    } else if (remarks === 'add') {
+                        console.log(`Processing ADD for unit ${unit}, tenant ${tenantName}...`);
+                        const newTenantData = {
+                            name: tenantName || 'Unnamed Tenant',
+                            unit: unit,
+                            floor: floor,
+                            remarks: tenantData.remarks,
+                            ...tenantData
+                        };
+                        
+                        // Explicitly set 'name' to the decoded tenantName for the poster script
+                        newTenantData.name = tenantName || 'Unnamed Tenant';
+                        
+                        const tenantId = await saveTenant(newTenantData, false);
+                        console.log(`Saved tenant to Redis: ${tenantId}`);
+                    }
+                } else {
+                    // Fallback to existing logic if it's not the specific format or no remarks
+                    console.log('Using generic save logic for row...');
+                    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+                    let extractedEmail = null;
+                    
+                    for (const value of Object.values(tenantData)) {
+                        if (typeof value === 'string') {
+                            const emailMatch = value.match(emailRegex);
+                            if (emailMatch) {
+                                extractedEmail = emailMatch[0];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (extractedEmail) {
+                        tenantData.email = extractedEmail;
+                    } else if (senderEmail) {
+                        tenantData.email = senderEmail;
+                    }
+
+                    try {
+                        const tenantId = await saveTenant(tenantData, false);
+                        console.log(`Saved tenant to Redis: ${tenantId}`);
+                    } catch (error) {
+                        console.error('Error saving tenant to Redis:', error);
+                    }
                 }
             }
 
@@ -164,10 +224,10 @@ async function extractTableDataAndSave(htmlContent, senderEmail = null) {
             console.log(`Table data saved to ${filename}`);
 
             if (dataRows.length > 0) {
-                console.log('Sample data (first row):', dataRows[0].join(' | '));
+                console.log('Sample data (first row):', dataRows[0]?.join(' | '));
             }
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error parsing HTML:', error);
         try {
             await saveFlaggedEmail({
@@ -208,14 +268,14 @@ export const main = async () => {
                     const senderEmail = message.envelope.from?.[0]?.address || null;
                     console.log('Sender email:', senderEmail);
 
-                    const source = message.source.toString();
+                    const source = message.source?.toString() || '';
                     let htmlContent = null;
 
                     const htmlPartMatch = source.match(/Content-Type: text\/html;?\s*([^\r\n]*)\r\nContent-Transfer-Encoding:\s*([^\r\n]+)\r\n\r\n([\s\S]*?)(?=\r\n--|$)/i);
 
                     if (htmlPartMatch) {
-                        const encoding = htmlPartMatch[2].toLowerCase().trim();
-                        let content = htmlPartMatch[3].trim();
+                        const encoding = htmlPartMatch[2]?.toLowerCase().trim() || '';
+                        let content = htmlPartMatch[3]?.trim() || '';
 
                         console.log(`Found HTML part with encoding: ${encoding}`);
                         console.log('Content preview (first 100 chars):', content.substring(0, 100));
@@ -290,7 +350,7 @@ export const main = async () => {
     }
 };
 
-export const disconnect = async (lock) => {
+export const disconnect = async (lock: any) => {
     if (lock) {
         lock.release();
         console.log('Mailbox lock released');

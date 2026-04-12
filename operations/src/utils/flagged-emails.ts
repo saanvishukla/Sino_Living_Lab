@@ -1,4 +1,4 @@
-import { redis } from './db';
+import redis from './db.js';
 import { randomUUID } from 'crypto';
 
 export interface FlaggedEmail {

@@ -1,0 +1,11 @@
+opencv-python
+numpy
+torch
+torchvision
+Pillow
+matplotlib
+scikit-learn
+easyocr
+webcolors
+requests
+redis

@@ -22,6 +22,16 @@ export interface TenantRecord {
 export const saveTenant = async (data: Record<string, any>, useUnitAsKey: boolean = false): Promise<string> => {
     let tenantId: string;
     
+    // Check if a tenant already exists for this unit
+    if (data.unit) {
+        const existingId = await redis.get(`unit:${data.unit}:tenant`);
+        if (existingId) {
+            // Delete the old tenant record before creating a new one
+            await deleteTenant(existingId);
+            console.log(`Overwriting existing tenant ${existingId} for unit ${data.unit}`);
+        }
+    }
+
     if (useUnitAsKey && data.building && data.unit) {
         tenantId = `${data.building}:${data.unit}`;
     } else {

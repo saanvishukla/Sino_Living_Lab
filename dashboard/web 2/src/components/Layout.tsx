@@ -1,6 +1,7 @@
-import { Building2, Users, AlertCircle, FileText, Search, Bell, Settings, User } from 'lucide-react'
+import { Building2, Users, AlertCircle, FileText, Search, Bell, Settings, User, Bot } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Input } from './ui/input'
+import ChatAssistant from './ChatAssistant'
 
 interface LayoutProps {
   children: ReactNode
@@ -67,6 +68,9 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
               <span className="font-medium">Buildings</span>
             </button>
           </div>
+          
+          {/* AI Assistant Button Integration */}
+          <ChatAssistant />
         </nav>
         
         <div className="p-4 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 mt-auto">
