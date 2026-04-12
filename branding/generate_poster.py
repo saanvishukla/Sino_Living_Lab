@@ -2,6 +2,8 @@ import redis
 import json
 from PIL import Image, ImageDraw, ImageFont
 import os
+from datetime import datetime
+import uuid
 
 def get_tenant_data():
     """Fetch tenant data from Redis and group by floor."""
@@ -199,6 +201,46 @@ def create_poster(floor_data):
     output_path = os.path.join(os.path.dirname(__file__), "poster.png")
     image.save(output_path)
     print(f"Poster saved to {output_path}")
+    
+    return output_path
+
+def save_poster_to_redis(poster_path, floor_data):
+    """Save poster metadata to Redis."""
+    try:
+        r = redis.Redis(
+            host=os.getenv('REDIS_HOST', 'localhost'),
+            port=int(os.getenv('REDIS_PORT', 6379)),
+            password=os.getenv('REDIS_PASSWORD', None),
+            decode_responses=True
+        )
+        
+        # Generate unique poster ID
+        poster_id = str(uuid.uuid4())
+        
+        # Create poster metadata
+        poster_metadata = {
+            'id': poster_id,
+            'filename': os.path.basename(poster_path),
+            'filepath': poster_path,
+            'created_at': datetime.now().isoformat(),
+            'floor_count': len(floor_data),
+            'tenant_count': sum(len(tenants) for tenants in floor_data.values()),
+            'floors': list(floor_data.keys())
+        }
+        
+        # Save to Redis with key pattern: poster:{id}
+        redis_key = f"poster:{poster_id}"
+        r.set(redis_key, json.dumps(poster_metadata))
+        
+        # Add to posters set for easy retrieval
+        r.sadd('posters', poster_id)
+        
+        print(f"Poster metadata saved to Redis with ID: {poster_id}")
+        return poster_id
+        
+    except Exception as e:
+        print(f"Error saving poster to Redis: {e}")
+        return None
 
 if __name__ == "__main__":
     data = get_tenant_data()
@@ -212,4 +254,5 @@ if __name__ == "__main__":
             "4": ["Penthouse Suite (401)"]
         }
     
-    create_poster(data)
+    poster_path = create_poster(data)
+    save_poster_to_redis(poster_path, data)

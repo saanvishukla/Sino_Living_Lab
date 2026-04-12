@@ -16,6 +16,16 @@ interface Tenant {
   [key: string]: any
 }
 
+interface Poster {
+  id: string
+  filename: string
+  filepath: string
+  created_at: string
+  floor_count: number
+  tenant_count: number
+  floors: string[]
+}
+
 export default function EDirectory() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [selectedTenants, setSelectedTenants] = useState<Set<string>>(new Set())
@@ -23,9 +33,12 @@ export default function EDirectory() {
   const [directoryTitle, setDirectoryTitle] = useState('Tenant Directory')
   const [includeEmail, setIncludeEmail] = useState(true)
   const [includeRemarks, setIncludeRemarks] = useState(true)
+  const [posters, setPosters] = useState<Poster[]>([])
+  const [selectedPoster, setSelectedPoster] = useState<Poster | null>(null)
 
   useEffect(() => {
     fetchTenants()
+    fetchPosters()
   }, [])
 
   const fetchTenants = async () => {
@@ -36,13 +49,25 @@ export default function EDirectory() {
       
       if (data.success) {
         setTenants(data.data)
-        // Select all by default
         setSelectedTenants(new Set(data.data.map((t: Tenant) => t.id)))
       }
     } catch (err) {
       console.error('Error fetching tenants:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPosters = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/posters')
+      const data = await response.json()
+      
+      if (data.success) {
+        setPosters(data.data)
+      }
+    } catch (err) {
+      console.error('Error fetching posters:', err)
     }
   }
 
@@ -64,66 +89,88 @@ export default function EDirectory() {
     }
   }
 
-  const exportToPDF = () => {
-    const selectedData = tenants.filter(t => selectedTenants.has(t.id))
-    
-    // Create a simple HTML table for printing
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
+  const exportToPDF = async () => {
+    if (selectedPoster) {
+      try {
+        const response = await fetch(`http://localhost:3001/api/export-poster/pdf/${selectedPoster.id}`, {
+          method: 'POST'
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to export PDF')
+        }
+        
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `poster_${selectedPoster.id}.pdf`
+        link.click()
+        window.URL.revokeObjectURL(url)
+      } catch (err) {
+        console.error('Error exporting PDF:', err)
+        alert('Failed to export PDF. Please try again.')
+      }
+    } else {
+      const selectedData = tenants.filter(t => selectedTenants.has(t.id))
+      
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) return
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${directoryTitle}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { text-align: center; color: #333; margin-bottom: 30px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background-color: #4F46E5; color: white; font-weight: bold; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <h1>${directoryTitle}</h1>
-          <p style="text-align: center; color: #666;">Generated on ${new Date().toLocaleDateString()}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Unit</th>
-                <th>Existing Tenant</th>
-                <th>New Tenant</th>
-                ${includeEmail ? '<th>Email</th>' : ''}
-                ${includeRemarks ? '<th>Remarks</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-              ${selectedData.map((tenant, index) => `
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${directoryTitle}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { text-align: center; color: #333; margin-bottom: 30px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+              th { background-color: #4F46E5; color: white; font-weight: bold; }
+              tr:nth-child(even) { background-color: #f9f9f9; }
+              .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <h1>${directoryTitle}</h1>
+            <p style="text-align: center; color: #666;">Generated on ${new Date().toLocaleDateString()}</p>
+            <table>
+              <thead>
                 <tr>
-                  <td>${index + 1}</td>
-                  <td>${tenant.unit || 'N/A'}</td>
-                  <td>${tenant.former_tenant___existing_tenant || 'N/A'}</td>
-                  <td>${tenant.new_tenant || 'N/A'}</td>
-                  ${includeEmail ? `<td>${tenant.email || 'N/A'}</td>` : ''}
-                  ${includeRemarks ? `<td>${tenant.remarks || 'N/A'}</td>` : ''}
+                  <th>#</th>
+                  <th>Unit</th>
+                  <th>Existing Tenant</th>
+                  <th>New Tenant</th>
+                  ${includeEmail ? '<th>Email</th>' : ''}
+                  ${includeRemarks ? '<th>Remarks</th>' : ''}
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="footer">
-            <p>Total Entries: ${selectedData.length}</p>
-            <p>SmartDirectory Management System</p>
-          </div>
-        </body>
-      </html>
-    `
+              </thead>
+              <tbody>
+                ${selectedData.map((tenant, index) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${tenant.unit || 'N/A'}</td>
+                    <td>${tenant.former_tenant___existing_tenant || 'N/A'}</td>
+                    <td>${tenant.new_tenant || 'N/A'}</td>
+                    ${includeEmail ? `<td>${tenant.email || 'N/A'}</td>` : ''}
+                    ${includeRemarks ? `<td>${tenant.remarks || 'N/A'}</td>` : ''}
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="footer">
+              <p>Total Entries: ${selectedData.length}</p>
+              <p>SmartDirectory Management System</p>
+            </div>
+          </body>
+        </html>
+      `
 
-    printWindow.document.write(html)
-    printWindow.document.close()
-    printWindow.print()
+      printWindow.document.write(html)
+      printWindow.document.close()
+      printWindow.print()
+    }
   }
 
   const exportToCSV = () => {
@@ -176,6 +223,45 @@ export default function EDirectory() {
           Create and export professional tenant directories
         </p>
       </div>
+
+      {posters.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Generated Posters</CardTitle>
+            <CardDescription>Select a poster to export as PDF</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {posters.map((poster) => (
+                <div
+                  key={poster.id}
+                  onClick={() => setSelectedPoster(poster)}
+                  className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                    selectedPoster?.id === poster.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'hover:border-gray-400'
+                  }`}
+                >
+                  <div className="h-48 bg-gray-200 rounded mb-3 overflow-hidden">
+                    <img 
+                      src={`http://localhost:3001/api/posters/${poster.id}/image`}
+                      alt={poster.filename}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="font-medium text-sm">{poster.filename}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {poster.floor_count} floors • {poster.tenant_count} tenants
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(poster.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Configuration Panel */}
