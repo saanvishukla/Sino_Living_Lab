@@ -32,15 +32,69 @@ export default function ChatAssistant() {
     setInput('')
     setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const assistantMessage: Message = { 
-        role: 'assistant', 
-        content: `I've received your message: "${input}". This is a demonstration of the AI interface. In a real scenario, I would be connected to the SmartDirectory API to help you with tenant registration, flagged emails, or directory generation.`
+    const lowerInput = input.toLowerCase()
+    
+    try {
+      if (lowerInput.includes('add')) {
+        // Add tenant logic
+        const response = await fetch('http://localhost:3001/api/tenants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            unit: '5768',
+            former_tenant___existing_tenant: 'John and Co.',
+            new_tenant: 'Swire Co.',
+            email: 'test@john.co',
+            name: 'Swire Co.',
+            floor: '57'
+          })
+        })
+        const data = await response.json()
+        
+        const content = data.success 
+          ? `Successfully added tenant "Swire Co." to unit 5768.`
+          : `Failed to add tenant: ${data.error || 'Unknown error'}`
+          
+        setMessages(prev => [...prev, { role: 'assistant', content }])
+      } 
+      else if (lowerInput.includes('delete')) {
+        // Delete tenant logic - First find the tenant ID for unit 5768
+        const listResponse = await fetch('http://localhost:3001/api/tenants?unit=5768')
+        const listData = await listResponse.json()
+        
+        if (listData.success && listData.data.length > 0) {
+          const tenantId = listData.data[0].id
+          const delResponse = await fetch(`http://localhost:3001/api/tenants/${tenantId}`, {
+            method: 'DELETE'
+          })
+          const delData = await delResponse.json()
+          
+          const content = delData.success
+            ? `Successfully deleted tenant in unit 5768.`
+            : `Failed to delete tenant: ${delData.error || 'Unknown error'}`
+          setMessages(prev => [...prev, { role: 'assistant', content }])
+        } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: 'Could not find any tenant in unit 5768 to delete.' }])
+        }
       }
-      setMessages(prev => [...prev, assistantMessage])
+      else {
+        // Generic demonstration response
+        setTimeout(() => {
+          const assistantMessage: Message = { 
+            role: 'assistant', 
+            content: `I've received your message: "${input}". This is a demonstration of the AI interface. You can say "add" to create a test tenant or "delete" to remove unit 5768.`
+          }
+          setMessages(prev => [...prev, assistantMessage])
+          setIsLoading(false)
+        }, 1000)
+        return // Return early to avoid double setIsLoading(false)
+      }
+    } catch (err) {
+      console.error('Chat error:', err)
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error connecting to the directory service.' }])
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   if (!isOpen) {

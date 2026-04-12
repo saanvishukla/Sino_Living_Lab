@@ -115,10 +115,25 @@ export default function TenantRegistration() {
 
   const addTenant = async () => {
     try {
+      // Ensure we extract floor from unit if not provided
+      let floor = addForm.floor
+      if (!floor && addForm.unit) {
+        if (addForm.unit.length >= 3) {
+          floor = addForm.unit.slice(0, -2)
+        } else {
+          floor = addForm.unit
+        }
+      }
+
       const response = await fetch('http://localhost:3001/api/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addForm)
+        body: JSON.stringify({
+          ...addForm,
+          floor,
+          // Explicitly map name for API validation if needed
+          name: addForm.former_tenant___existing_tenant || addForm.new_tenant || 'Unnamed Tenant'
+        })
       })
       const data = await response.json()
       
@@ -126,10 +141,74 @@ export default function TenantRegistration() {
         await fetchTenants()
         setAddDialogOpen(false)
         setAddForm({})
+      } else {
+        alert(data.error || 'Failed to add tenant')
       }
     } catch (err) {
       console.error('Error adding tenant:', err)
+      alert('Error connecting to API')
     }
+  }
+
+  const handleExportPDF = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Please allow pop-ups to export PDF')
+      return
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Tenant Directory Export</title>
+          <style>
+            body { font-family: 'Helvetica', 'Arial', sans-serif; padding: 40px; color: #333; }
+            h1 { text-align: center; color: #1e40af; margin-bottom: 10px; }
+            p.subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #e2e8f0; padding: 12px 15px; text-align: left; }
+            th { background-color: #f8fafc; color: #475569; font-weight: bold; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
+            tr:nth-child(even) { background-color: #f1f5f9; }
+            .unit-cell { font-weight: bold; color: #2563eb; width: 80px; }
+            .tenant-cell { font-weight: 500; }
+            .footer { margin-top: 40px; text-align: center; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <h1>Office Directory</h1>
+          <p class="subtitle">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Unit</th>
+                <th>Tenant Name</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tenants.map(t => `
+                <tr>
+                  <td class="unit-cell">${t.unit || 'N/A'}</td>
+                  <td class="tenant-cell">${t.name || t.former_tenant___existing_tenant || t.new_tenant || 'Unnamed Tenant'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Sino Living Lab - SmartDirectory Management System
+          </div>
+          <script>
+            window.onload = () => {
+              window.print();
+              // Optional: window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(html)
+    printWindow.document.close()
   }
 
   const filteredTenants = tenants.filter(tenant => {
@@ -264,7 +343,12 @@ export default function TenantRegistration() {
                 <Plus className="h-4 w-4" />
                 Add Tenant
               </Button>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={handleExportPDF}
+              >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
