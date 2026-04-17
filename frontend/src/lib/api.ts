@@ -93,6 +93,23 @@ export const api = {
     fetchJson<Tenant[]>(
       `/api/tenants/${buildingId ? `?building_id=${buildingId}` : ""}`
     ),
+  updateTenant: async (
+    id: string,
+    patch: Partial<
+      Pick<
+        Tenant,
+        "name" | "name_zh" | "unit" | "floor" | "category" | "category_zh" | "status"
+      >
+    >
+  ): Promise<Tenant> => {
+    const res = await fetch(`${API_BASE}/api/tenants/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
   activity: (limit = 100) => fetchJson<Activity[]>(`/api/activity/?limit=${limit}`),
   posters: () => fetchJson<Poster[]>("/api/posters/"),
   generatePoster: async (buildingId: string): Promise<Poster> => {
