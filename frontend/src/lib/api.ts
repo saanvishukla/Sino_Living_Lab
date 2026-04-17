@@ -24,8 +24,10 @@ function authHeaders(): Record<string, string> {
 export interface Building {
   id: string;
   name: string;
+  name_zh: string | null;
   code: string;
   address: string | null;
+  address_zh: string | null;
   template_key: string;
   brand_config: Record<string, unknown>;
   created_at: string;
@@ -36,6 +38,8 @@ export interface Tenant {
   id: string;
   building_id: string;
   name: string;
+  name_zh: string | null;
+  category_zh: string | null;
   unit: string | null;
   floor: string | null;
   category: string | null;
@@ -157,6 +161,47 @@ export const api = {
     return res.json() as Promise<{ token: string; user: AuthUser }>;
   },
   me: () => fetchJson<AuthUser>("/api/auth/me"),
+
+  // Insights / Overview
+  suggestions: () =>
+    fetchJson<{
+      generated_at: string;
+      count: number;
+      suggestions: {
+        severity: "high" | "medium" | "low";
+        kind: string;
+        title: string;
+        body: string;
+        cta?: { label: string; href: string };
+      }[];
+    }>("/api/insights/suggestions"),
+  summary: () =>
+    fetchJson<{
+      totals: {
+        buildings: number;
+        tenants: number;
+        active_tenants: number;
+        posters: number;
+        live_posters: number;
+        pending_posters: number;
+      };
+      by_category: { category: string; count: number }[];
+      by_building: { building_id: string; building: string; count: number }[];
+      by_status: { status: string; count: number }[];
+      activity_by_day: { date: string; count: number }[];
+    }>("/api/insights/summary"),
+  notifications: () =>
+    fetchJson<{
+      count: number;
+      notifications: {
+        channel: string;
+        to: string;
+        subject: string;
+        body: string;
+        sent_at: string;
+        template?: string;
+      }[];
+    }>("/api/insights/notifications"),
 };
 
 export interface AuthUser {

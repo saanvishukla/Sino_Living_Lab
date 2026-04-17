@@ -8,8 +8,10 @@ from app.db.models import TenantStatus, PosterStatus
 
 class BuildingBase(BaseModel):
     name: str
+    name_zh: str | None = None
     code: str
     address: str | None = None
+    address_zh: str | None = None
     template_key: str = "default"
     brand_config: dict[str, Any] = {}
 
@@ -20,7 +22,9 @@ class BuildingCreate(BuildingBase):
 
 class BuildingUpdate(BaseModel):
     name: str | None = None
+    name_zh: str | None = None
     address: str | None = None
+    address_zh: str | None = None
     template_key: str | None = None
     brand_config: dict[str, Any] | None = None
 
@@ -35,9 +39,11 @@ class BuildingOut(BuildingBase):
 
 class TenantBase(BaseModel):
     name: str
+    name_zh: str | None = None
     unit: str | None = None
     floor: str | None = None
     category: str | None = None
+    category_zh: str | None = None
     contact_email: str | None = None
     contact_phone: str | None = None
     extra: dict[str, Any] = {}
@@ -50,9 +56,11 @@ class TenantCreate(TenantBase):
 
 class TenantUpdate(BaseModel):
     name: str | None = None
+    name_zh: str | None = None
     unit: str | None = None
     floor: str | None = None
     category: str | None = None
+    category_zh: str | None = None
     contact_email: str | None = None
     contact_phone: str | None = None
     status: TenantStatus | None = None

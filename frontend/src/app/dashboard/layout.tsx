@@ -11,10 +11,12 @@ import {
   Activity,
   Plug,
   LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { api, getToken, setToken, type AuthUser } from "@/lib/api";
 
 const navItems = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
   { href: "/dashboard/chat", icon: MessageSquare, label: "AI Assistant" },
   { href: "/dashboard/tenants", icon: Users, label: "Tenants" },
   { href: "/dashboard/buildings", icon: Building2, label: "Buildings" },

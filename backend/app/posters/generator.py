@@ -9,9 +9,23 @@ from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
 
+import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
+from app.config import settings
 from app.db.models import Building, Tenant
+
+
+def _make_qr(data: str, box_size: int = 2) -> Image.Image:
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=box_size,
+        border=2,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    return qr.make_image(fill_color="#111111", back_color="#ffffff").convert("RGB")
 
 
 POSTER_DIR = Path(
@@ -33,6 +47,8 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         "/System/Library/Fonts/Helvetica.ttc",
         "/Library/Fonts/Arial.ttf",
         "/System/Library/Fonts/Supplemental/Arial.ttf",
+        # Linux (Render/Docker)
+        "/usr/share/fonts/truetype/dejavu/DejaVu-Sans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
     for path in candidates:
         try:
@@ -40,6 +56,29 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         except OSError:
             continue
     return ImageFont.load_default()
+
+
+def _font_zh(size: int) -> ImageFont.FreeTypeFont:
+    """Load a CJK font for Traditional Chinese rendering."""
+    candidates = [
+        # macOS
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+        # Linux (Docker) — apt install fonts-noto-cjk
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        # WenQuanYi fallback
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size=size)
+        except OSError:
+            continue
+    return _font(size)
 
 
 def _floor_sort_key(floor: str) -> tuple[int, str]:
@@ -88,15 +127,36 @@ def render_poster(building: Building, tenants: list[Tenant], output_path: Path |
     )
     draw.text(
         (logo_x + logo_size + 20, logo_y + 38),
-        "E-DIRECTORY",
+        "E-DIRECTORY  ·  電子指南",
         fill="#ffffff",
-        font=_font(14),
+        font=_font_zh(14),
     )
 
-    # Building title
-    draw.text((MARGIN, 190), building.name.upper(), fill="#ffffff", font=_font(56))
+    # Building title (EN large + ZH underneath)
+    draw.text((MARGIN, 170), building.name.upper(), fill="#ffffff", font=_font(52))
+    if building.name_zh:
+        draw.text((MARGIN, 232), building.name_zh, fill="#ffffff", font=_font_zh(30))
     if building.address:
-        draw.text((MARGIN, 260), building.address, fill="#ffffff", font=_font(20))
+        addr = building.address_zh or building.address
+        draw.text((MARGIN, 278), addr, fill="#ffffff", font=_font_zh(16))
+
+    # Building-level QR in the header (top-right)
+    try:
+        b_qr = _make_qr(
+            f"{settings.public_base_url.rstrip('/')}/b/{building.code}",
+            box_size=3,
+        )
+        bq_size = 140
+        b_qr = b_qr.resize((bq_size, bq_size), Image.NEAREST)
+        img.paste(b_qr, (WIDTH - MARGIN - bq_size, 150))
+        draw.text(
+            (WIDTH - MARGIN - bq_size, 150 + bq_size + 4),
+            "Scan for full directory",
+            fill="#ffffff",
+            font=_font_zh(11),
+        )
+    except Exception:
+        pass
 
     # --- Tenant directory
     y = header_h + 60
@@ -117,26 +177,50 @@ def render_poster(building: Building, tenants: list[Tenant], output_path: Path |
 
         for tenant in sorted(by_floor[floor], key=lambda t: t.name):
             # Dot
-            draw.ellipse([(MARGIN + 4, y + 14), (MARGIN + 14, y + 24)], fill=accent)
-            # Name
-            draw.text((MARGIN + 30, y + 4), tenant.name, fill="#111111", font=_font(22))
-            # Unit on right
+            draw.ellipse([(MARGIN + 4, y + 16), (MARGIN + 14, y + 26)], fill=accent)
+            # EN name
+            draw.text((MARGIN + 30, y + 2), tenant.name, fill="#111111", font=_font(22))
+            # ZH name
+            if tenant.name_zh and tenant.name_zh != tenant.name:
+                draw.text(
+                    (MARGIN + 30, y + 30),
+                    tenant.name_zh,
+                    fill="#444444",
+                    font=_font_zh(18),
+                )
+            # Unit to the left of QR code
             if tenant.unit:
                 draw.text(
-                    (WIDTH - MARGIN - 120, y + 4),
+                    (WIDTH - MARGIN - 210, y + 8),
                     tenant.unit,
                     fill="#888888",
                     font=_font(20),
                 )
-            # Category small
-            if tenant.category:
-                draw.text(
-                    (MARGIN + 30, y + 30),
-                    tenant.category,
-                    fill="#888888",
-                    font=_font(14),
+            # QR code linking to /t/<tenant_id>
+            try:
+                qr_img = _make_qr(
+                    f"{settings.public_base_url.rstrip('/')}/t/{tenant.id}",
+                    box_size=2,
                 )
-            y += 56
+                qr_size = 70
+                qr_img = qr_img.resize((qr_size, qr_size), Image.NEAREST)
+                img.paste(qr_img, (WIDTH - MARGIN - qr_size, y))
+            except Exception:
+                pass
+            # Category small (bilingual)
+            if tenant.category:
+                cat_text = (
+                    f"{tenant.category} · {tenant.category_zh}"
+                    if tenant.category_zh
+                    else tenant.category
+                )
+                draw.text(
+                    (MARGIN + 30, y + 56),
+                    cat_text,
+                    fill="#888888",
+                    font=_font_zh(13),
+                )
+            y += 80
 
             if y > HEIGHT - 140:
                 break
@@ -146,13 +230,13 @@ def render_poster(building: Building, tenants: list[Tenant], output_path: Path |
 
     # --- Footer
     draw.line([(MARGIN, HEIGHT - 100), (WIDTH - MARGIN, HEIGHT - 100)], fill="#e5e5e5", width=1)
-    footer_text = f"Generated {datetime.utcnow().strftime('%d %b %Y · %H:%M UTC')}"
-    draw.text((MARGIN, HEIGHT - 80), footer_text, fill="#999999", font=_font(14))
+    footer_text = f"Generated  生成時間  {datetime.utcnow().strftime('%d %b %Y · %H:%M UTC')}"
+    draw.text((MARGIN, HEIGHT - 80), footer_text, fill="#999999", font=_font_zh(13))
     draw.text(
-        (WIDTH - MARGIN - 220, HEIGHT - 80),
-        "Sino Operating Layer",
+        (WIDTH - MARGIN - 260, HEIGHT - 80),
+        "Sino Operating Layer  信和營運平台",
         fill="#999999",
-        font=_font(14),
+        font=_font_zh(13),
     )
 
     # Save

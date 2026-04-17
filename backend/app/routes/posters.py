@@ -124,6 +124,16 @@ async def approve_poster(
         entity_id=poster.id,
         details={"building_id": poster.building_id, "version": poster.version},
     )
+    # Fan out simulated WeChat + email notifications
+    from app.services.notifications import notify_poster_event
+    building = await db.get(Building, poster.building_id)
+    await notify_poster_event(
+        event="approved",
+        building_name=building.name if building else poster.building_id,
+        poster_id=poster.id,
+        version=poster.version,
+        actor=user.name,
+    )
     return poster
 
 
@@ -131,7 +141,7 @@ async def approve_poster(
 async def reject_poster(
     poster_id: str,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     from app.services.activity import log_activity
     poster = await db.get(Poster, poster_id)
@@ -148,5 +158,14 @@ async def reject_poster(
         entity_type="poster",
         entity_id=poster.id,
         details={"building_id": poster.building_id, "version": poster.version},
+    )
+    from app.services.notifications import notify_poster_event
+    building = await db.get(Building, poster.building_id)
+    await notify_poster_event(
+        event="rejected",
+        building_name=building.name if building else poster.building_id,
+        poster_id=poster.id,
+        version=poster.version,
+        actor=user.name,
     )
     return poster

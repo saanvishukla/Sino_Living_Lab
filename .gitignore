@@ -21,3 +21,6 @@ backend/**/__pycache__/
 backend/*.db
 backend/generated_posters/
 backend/.env
+backend/notifications.jsonl
+backend/sino.db
+backend/generated_posters/*.png

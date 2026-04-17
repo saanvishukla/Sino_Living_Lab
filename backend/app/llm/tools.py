@@ -79,6 +79,8 @@ async def add_tenant(
     unit: str | None = None,
     category: str | None = None,
     contact_email: str | None = None,
+    name_zh: str | None = None,
+    category_zh: str | None = None,
 ) -> dict[str, Any]:
     async with AsyncSessionLocal() as db:
         building = await db.get(Building, building_id)
@@ -93,10 +95,12 @@ async def add_tenant(
 
         tenant = Tenant(
             name=name,
+            name_zh=name_zh,
             building_id=building.id,
             floor=floor,
             unit=unit,
             category=category,
+            category_zh=category_zh,
             contact_email=contact_email,
             status=TenantStatus.ACTIVE,
         )
@@ -136,6 +140,8 @@ async def update_tenant(
     unit: str | None = None,
     category: str | None = None,
     status: str | None = None,
+    name_zh: str | None = None,
+    category_zh: str | None = None,
 ) -> dict[str, Any]:
     async with AsyncSessionLocal() as db:
         tenant: Tenant | None = None
@@ -155,6 +161,10 @@ async def update_tenant(
             tenant.unit = unit
         if category is not None:
             tenant.category = category
+        if name_zh is not None:
+            tenant.name_zh = name_zh
+        if category_zh is not None:
+            tenant.category_zh = category_zh
         if status is not None:
             try:
                 tenant.status = TenantStatus(status)
@@ -293,11 +303,13 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
+                    "name": {"type": "string", "description": "English name"},
+                    "name_zh": {"type": "string", "description": "Traditional Chinese name (繁體中文), e.g. 星巴克"},
                     "building_id": {"type": "string", "description": "Building id (e.g. 'bld-plaza') or code (e.g. 'PLAZA')"},
                     "floor": {"type": "string"},
                     "unit": {"type": "string"},
                     "category": {"type": "string", "description": "e.g. F&B, Retail, Finance"},
+                    "category_zh": {"type": "string", "description": "Traditional Chinese category, e.g. 餐飲, 零售"},
                     "contact_email": {"type": "string"},
                 },
                 "required": ["name", "building_id"],
@@ -317,6 +329,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "floor": {"type": "string"},
                     "unit": {"type": "string"},
                     "category": {"type": "string"},
+                    "name_zh": {"type": "string", "description": "Traditional Chinese name"},
+                    "category_zh": {"type": "string", "description": "Traditional Chinese category"},
                     "status": {"type": "string", "enum": ["active", "pending", "left"]},
                 },
             },

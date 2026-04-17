@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     cors_origins: str = "http://localhost:3000"
+    public_base_url: str = "http://localhost:3000"
 
     @property
     def cors_origins_list(self) -> list[str]:

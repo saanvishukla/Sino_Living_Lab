@@ -67,6 +67,16 @@ async def regenerate_for_building(
         await db.commit()
         await db.refresh(poster)
 
+    if not auto_approve:
+        from app.services.notifications import notify_poster_event
+        await notify_poster_event(
+            event="pending",
+            building_name=building.name,
+            poster_id=poster.id,
+            version=next_version,
+            actor=actor_type,
+        )
+
     await log_activity(
         actor_type=actor_type,
         actor_id=actor_id,

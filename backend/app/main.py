@@ -7,7 +7,7 @@ from app.config import settings
 from app.db.base import Base, engine
 from app.db import models  # noqa: F401 — ensure models are registered
 from app.db.seed import seed_if_empty
-from app.routes import health, tenants, buildings, posters, chat, activity, plugin, auth
+from app.routes import health, tenants, buildings, posters, chat, activity, plugin, auth, public, insights
 
 
 @asynccontextmanager
@@ -45,8 +45,11 @@ app.include_router(buildings.router, prefix="/api/buildings", tags=["buildings"]
 app.include_router(posters.router, prefix="/api/posters", tags=["posters"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"], dependencies=protected)
 app.include_router(activity.router, prefix="/api/activity", tags=["activity"], dependencies=protected)
+app.include_router(insights.router, prefix="/api/insights", tags=["insights"], dependencies=protected)
 # Plug-in endpoints stay open so external systems can POST without user tokens
 app.include_router(plugin.router, prefix="/api/plugin", tags=["plugin"])
+# Public endpoints accessed via QR codes — no auth required
+app.include_router(public.router, prefix="/api/public", tags=["public"])
 
 
 @app.get("/")

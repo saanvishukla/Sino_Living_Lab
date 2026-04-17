@@ -27,10 +27,12 @@ router = APIRouter()
 
 class PluginTenant(BaseModel):
     name: str
+    name_zh: str | None = None
     building: str  # id OR code (e.g. "PLAZA")
     unit: str | None = None
     floor: str | None = None
     category: str | None = None
+    category_zh: str | None = None
     contact_email: str | None = None
     contact_phone: str | None = None
     status: str = "active"
@@ -78,6 +80,10 @@ async def _upsert_tenant(
         tenant.floor = data.floor
     if data.category is not None:
         tenant.category = data.category
+    if data.name_zh is not None:
+        tenant.name_zh = data.name_zh
+    if data.category_zh is not None:
+        tenant.category_zh = data.category_zh
     if data.contact_email is not None:
         tenant.contact_email = data.contact_email
     if data.contact_phone is not None:
@@ -168,10 +174,12 @@ async def import_csv(
             rows.append(
                 PluginTenant(
                     name=(row.get("name") or "").strip(),
+                    name_zh=(row.get("name_zh") or "").strip() or None,
                     building=(row.get("building") or "").strip(),
                     unit=(row.get("unit") or "").strip() or None,
                     floor=(row.get("floor") or "").strip() or None,
                     category=(row.get("category") or "").strip() or None,
+                    category_zh=(row.get("category_zh") or "").strip() or None,
                     contact_email=(row.get("contact_email") or "").strip() or None,
                     contact_phone=(row.get("contact_phone") or "").strip() or None,
                     status=(row.get("status") or "active").strip() or "active",
