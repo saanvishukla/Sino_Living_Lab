@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
+    llm_provider: str = "grok"
+    llm_model: str = "grok-2-latest"
+
+    xai_api_key: str = ""
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 

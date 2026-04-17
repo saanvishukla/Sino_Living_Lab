@@ -52,11 +52,13 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch("http://localhost:8000/api/chat/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ message: content, history }),
       });
+      if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
     } catch {
@@ -136,7 +138,7 @@ export default function ChatPage() {
 
       <div className="flex-shrink-0 px-6 pb-6 pt-2 bg-white">
         <div className="max-w-3xl mx-auto">
-          <div className="relative rounded-2xl border border-neutral-300 focus-within:border-neutral-500 bg-white shadow-sm transition-colors">
+          <div className="relative rounded-2xl border border-neutral-300 focus-within:border-neutral-900 bg-white shadow-sm transition-colors">
             <textarea
               ref={inputRef}
               value={input}
@@ -144,15 +146,21 @@ export default function ChatPage() {
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Message the operating layer…"
-              className="w-full resize-none px-5 py-4 pr-14 bg-transparent outline-none text-[15px] placeholder:text-neutral-400 max-h-48"
-              style={{ minHeight: "56px" }}
+              className="w-full resize-none px-5 py-4 pr-16 bg-transparent outline-none text-[15px] text-neutral-900 placeholder:text-neutral-400 max-h-48"
+              style={{ minHeight: "60px" }}
             />
             <button
+              type="button"
               onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
-              className="absolute right-3 bottom-3 w-8 h-8 rounded-lg bg-neutral-900 text-white flex items-center justify-center disabled:bg-neutral-200 disabled:text-neutral-400 hover:bg-neutral-800 transition-colors"
+              aria-label="Send message"
+              className={`absolute right-3 bottom-3 w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                loading || !input.trim()
+                  ? "bg-neutral-300 text-white cursor-not-allowed"
+                  : "bg-[var(--sino-primary)] text-white hover:bg-rose-800 cursor-pointer shadow-sm"
+              }`}
             >
-              <ArrowUp className="w-4 h-4" />
+              <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
             </button>
           </div>
           <p className="text-center text-[11px] text-neutral-400 mt-3">
