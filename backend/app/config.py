@@ -10,12 +10,12 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/sino_operating_layer"
 
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = "dev-secret-change-me-in-prod"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 1440
+    jwt_expire_hours: int = 168  # 7 days
 
     llm_provider: str = "grok"
-    llm_model: str = "grok-2-latest"
+    llm_model: str = "grok-4-fast-non-reasoning"
 
     xai_api_key: str = ""
     anthropic_api_key: str = ""

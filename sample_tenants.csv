@@ -1,0 +1,8 @@
+name,building,unit,floor,category,contact_email,contact_phone,status
+Nike,PLAZA,3-12,3,Retail,plaza@nike.com,+852 2345 6789,active
+Sephora,PLAZA,3-04,3,Retail,plaza@sephora.com,,active
+Shake Shack,PLAZA,B1-05,B1,F&B,plaza@shakeshack.com,,active
+Fitness First,CENTRAL,5-01,5,Fitness,central@fitnessfirst.com,,active
+Blue Bottle Coffee,CENTRAL,G-07,G,F&B,central@bluebottle.com,,active
+Toys R Us,OLYMPIAN,2-08,2,Retail,olympian@toysrus.com,,active
+Genki Sushi,OLYMPIAN,G-22,G,F&B,olympian@genki.hk,,active

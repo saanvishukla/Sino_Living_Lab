@@ -2,10 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+interface ToolCall {
+  name: string;
+  arguments: string;
+  result: string;
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  tool_calls?: ToolCall[];
 }
 
 const SUGGESTIONS = [
@@ -53,14 +62,22 @@ export default function ChatPage() {
 
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
-      const res = await fetch("http://localhost:8000/api/chat/", {
+      const token = typeof window !== "undefined" ? localStorage.getItem("sino_token") : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+      const res = await fetch(`${apiBase}/api/chat/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ message: content, history }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: data.reply, tool_calls: data.tool_calls },
+      ]);
     } catch {
       setMessages((m) => [
         ...m,
@@ -129,7 +146,7 @@ export default function ChatPage() {
         ) : (
           <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
             {messages.map((m, i) => (
-              <MessageBubble key={i} role={m.role} content={m.content} />
+              <MessageBubble key={i} role={m.role} content={m.content} tool_calls={m.tool_calls} />
             ))}
             {loading && <TypingIndicator />}
           </div>
@@ -172,7 +189,15 @@ export default function ChatPage() {
   );
 }
 
-function MessageBubble({ role, content }: { role: "user" | "assistant"; content: string }) {
+function MessageBubble({
+  role,
+  content,
+  tool_calls,
+}: {
+  role: "user" | "assistant";
+  content: string;
+  tool_calls?: ToolCall[];
+}) {
   if (role === "user") {
     return (
       <div className="flex justify-end">
@@ -188,10 +213,24 @@ function MessageBubble({ role, content }: { role: "user" | "assistant"; content:
       <div className="w-7 h-7 rounded-md bg-neutral-900 flex items-center justify-center flex-shrink-0 mt-0.5">
         <Sparkles className="w-3.5 h-3.5 text-white" />
       </div>
-      <div className="flex-1 pt-0.5">
+      <div className="flex-1 pt-0.5 min-w-0">
         <div className="text-xs font-medium text-neutral-500 mb-1.5">Sino Assistant</div>
-        <div className="text-[15px] leading-relaxed text-neutral-900 whitespace-pre-wrap">
-          {content}
+        {tool_calls && tool_calls.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {tool_calls.map((tc, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-600 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded"
+                title={tc.arguments}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {tc.name}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="text-[15px] leading-relaxed text-neutral-900 space-y-3 [&_p]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-neutral-900 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1 [&_li]:marker:text-neutral-400 [&_code]:bg-neutral-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px] [&_code]:font-mono [&_code]:text-neutral-700 [&_a]:text-[var(--sino-primary)] [&_a]:underline [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
       </div>
     </div>

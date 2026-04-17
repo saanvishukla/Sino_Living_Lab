@@ -1,22 +1,26 @@
 from openai import AsyncOpenAI
 
 from app.config import settings
+from app.llm.tools import TOOL_SCHEMAS, execute_tool
 
 
 SYSTEM_PROMPT = """You are the Sino Operating Layer — an agentic AI assistant for Sino Group's brand and design operations team.
 
-Your responsibilities:
-- Help manage tenant data across Sino Group buildings
-- Generate, regenerate, and update e-directory posters
-- Check compliance and brand guidelines
-- Provide statistics and insights about tenants and buildings
-- Answer questions about the current state of tenants, buildings, and posters
+You have tools to manage tenant data across Sino Group buildings. Use them whenever the
+user asks about tenants, buildings, statistics, or wants to add / update / remove tenants.
 
-Be concise, professional, and action-oriented. When the user asks you to do something,
-acknowledge what you understood and describe what action you would take. (Note: tool use
-will be connected in a future phase — for now just describe the action clearly.)
+Guidelines:
+- When the user asks a question about current data, CALL the appropriate tool rather than
+  guessing. Never fabricate tenant or building information.
+- When the user asks you to make a change, call the tool to perform it, then confirm briefly.
+- After a successful action, briefly summarize what changed in plain English.
+- Be concise, professional, and action-oriented.
 
-You are speaking with a Sino Group internal team member."""
+Buildings are identified by id (e.g. "bld-plaza") or code (e.g. "PLAZA"). Known codes:
+PLAZA (Sino Plaza), CENTRAL (Central Building), OLYMPIAN (Olympian City)."""
+
+
+MAX_TOOL_ROUNDS = 5
 
 
 def _build_client() -> AsyncOpenAI:
@@ -38,16 +42,72 @@ def _build_client() -> AsyncOpenAI:
     raise RuntimeError(f"Unsupported LLM provider: {provider}")
 
 
-async def chat_completion(user_message: str, history: list[dict] | None = None) -> str:
+async def chat_completion(user_message: str, history: list[dict] | None = None) -> dict:
+    """Run a multi-round tool-calling loop and return the final assistant reply.
+
+    Returns a dict: {"reply": str, "tool_calls": list[{name, arguments, result}]}
+    """
     client = _build_client()
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
     if history:
-        messages.extend(history)
+        # Only keep role+content from the history to avoid sending stale tool_calls
+        for h in history:
+            if h.get("role") in {"user", "assistant"} and h.get("content"):
+                messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": user_message})
 
-    response = await client.chat.completions.create(
-        model=settings.llm_model,
-        messages=messages,
-        temperature=0.3,
-    )
-    return response.choices[0].message.content or ""
+    executed_tools: list[dict] = []
+
+    for _ in range(MAX_TOOL_ROUNDS):
+        response = await client.chat.completions.create(
+            model=settings.llm_model,
+            messages=messages,
+            tools=TOOL_SCHEMAS,
+            temperature=0.3,
+        )
+        msg = response.choices[0].message
+
+        if not msg.tool_calls:
+            return {"reply": msg.content or "", "tool_calls": executed_tools}
+
+        # Append the assistant's tool-call message to history
+        messages.append(
+            {
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ],
+            }
+        )
+
+        # Execute each tool and add its result
+        for tc in msg.tool_calls:
+            result_json = await execute_tool(tc.function.name, tc.function.arguments)
+            executed_tools.append(
+                {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                    "result": result_json,
+                }
+            )
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result_json,
+                }
+            )
+
+    return {
+        "reply": "I hit the tool-use limit for this turn. Please try rephrasing.",
+        "tool_calls": executed_tools,
+    }
