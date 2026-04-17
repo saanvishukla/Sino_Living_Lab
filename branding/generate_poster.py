@@ -1,9 +1,10 @@
 import redis
 import json
-from PIL import Image, ImageDraw, ImageFont
 import os
 from datetime import datetime
 import uuid
+import argparse
+from poster_templates import TEMPLATES
 
 def get_tenant_data():
     """Fetch tenant data from Redis and group by floor."""
@@ -204,8 +205,23 @@ def create_poster(floor_data):
     
     return output_path
 
+def generate_poster(template_name, floor_data):
+    if template_name not in TEMPLATES:
+        print(f"Unknown template: {template_name}")
+        return None
+    
+    template_class = TEMPLATES[template_name]
+    template = template_class(floor_data)
+    image = template.create()
+    
+    output_filename = f"poster_{template_name}.png"
+    output_path = os.path.join(os.path.dirname(__file__), output_filename)
+    image.save(output_path)
+    print(f"Poster saved to {output_path}")
+    
+    return output_path
+
 def save_poster_to_redis(poster_path, floor_data):
-    """Save poster metadata to Redis."""
     try:
         r = redis.Redis(
             host=os.getenv('REDIS_HOST', 'localhost'),
@@ -243,10 +259,15 @@ def save_poster_to_redis(poster_path, floor_data):
         return None
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Generate beautiful tenant directory posters')
+    parser.add_argument('--template', type=str, help='Template name (modern_minimal, luxury_dark, vibrant_blue, warm_elegant, bold_contemporary)')
+    parser.add_argument('--all', action='store_true', help='Generate all templates')
+    
+    args = parser.parse_args()
+    
     data = get_tenant_data()
     if not data:
         print("No tenant data found in Redis. Using sample data for demonstration.")
-        # Sample data if Redis is empty or unavailable
         data = {
             "1": ["Cafe Java (101)", "Flower Shop (102)"],
             "2": ["Tech Solutions (201)", "Creative Studio (202)"],
@@ -254,5 +275,19 @@ if __name__ == "__main__":
             "4": ["Penthouse Suite (401)"]
         }
     
-    poster_path = create_poster(data)
-    save_poster_to_redis(poster_path, data)
+    if args.all:
+        print("Generating all poster templates...")
+        for template_name in TEMPLATES.keys():
+            poster_path = generate_poster(template_name, data)
+            if poster_path:
+                save_poster_to_redis(poster_path, data)
+    elif args.template:
+        poster_path = generate_poster(args.template, data)
+        if poster_path:
+            save_poster_to_redis(poster_path, data)
+    else:
+        print("Generating all templates by default...")
+        for template_name in TEMPLATES.keys():
+            poster_path = generate_poster(template_name, data)
+            if poster_path:
+                save_poster_to_redis(poster_path, data)
